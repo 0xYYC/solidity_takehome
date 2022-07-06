@@ -34,34 +34,88 @@ describe("Grant", function () {
 
   describe("Deposit balance", async () => {
 
-    it("deposit total updated", async () => {
+    it("funder total deposit total updated", async () => {
       
-      expect(await grant.depositedBalance(signers[1].address)).to.be.eq(
+      expect(await grant.DepositedBalanceOf(signers[1].address)).to.be.eq(
         ethers.utils.parseEther("15")
       );           
     });
 
-    it("should remove", async () => {
+    it("all funders total deposit total updated", async () => {
       
-      await  grant.connect(signers[1]).remove(); 
-
-      expect(await grant.depositedBalance(signers[1].address)).to.be.eq(
-        ethers.utils.parseEther("0")
+      expect(await grant.totalDeposited()).to.be.eq(
+        ethers.utils.parseEther("20")
       );           
     });
-
-    
-
-    
-    
   });
 
-  
+  describe("Remove", async () => { 
 
-  
+    it("should not remove if not a funder", async () => {      
+      await  expect(grant.connect(signers[3]).remove()).to.be.revertedWith('Not a funder');               
+    });
+
+    it("should remove if a funder", async () => {   
+
+      await  expect(grant.connect(signers[2]).remove());
+      expect(await grant.connect(signers[2]).totalDeposited()).to.be.eq(ethers.utils.parseEther("15"));  
+      expect(await token.connect(signers[2]).balanceOf(signers[2].address)).to.be.eq(ethers.utils.parseEther("100"));
+      
+    });
+
+    it("should not remove twice", async () => {   
+
+      await  expect(grant.connect(signers[2]).remove());
+      await  expect(grant.connect(signers[2]).remove()).to.be.revertedWith('Not a funder');
+
+    });
+
+    it("should not be able to remove after timelock", async () => {
+      
+      const oneyear = 366 * 24 * 60 * 60;
+      await hre.network.provider.request({
+          method: "evm_increaseTime",
+          params: [oneyear]
+      });
+
+      await  expect(grant.connect(signers[1]).remove()).to.be.revertedWith('late to remove');
+
+    });
+  });
+
+  describe("Claim", async () => {
+
+    it("should not be able to claim if not pass the timelock yet", async () => {      
+      await  expect(grant.connect(signers[0]).claim()).to.be.revertedWith('Not pass the timelock yet');               
+    });
+
+    describe("Claim after timelock", async () => {
+      beforeEach(async () => {
+        const oneyear = 366 * 24 * 60 * 60;
+        await hre.network.provider.request({
+            method: "evm_increaseTime",
+            params: [oneyear]
+        });  
+      });
+   
+      it("should not be able to claim if not the recipient", async () => {     
+        
+        await  expect(grant.connect(signers[3]).claim()).to.be.revertedWith('Not a recipient');               
+      });     
+
+      it("should be able to claim after the timelock", async () => {     
+        await  grant.connect(signers[0]).claim();
+        expect(await token.connect(signers[0]).balanceOf(signers[0].address)).to.be.eq(ethers.utils.parseEther("20"));
+
+      });
+
+      it("should not be able to claim twice", async () => {     
+        await  grant.connect(signers[0]).claim();
+        await expect( grant.connect(signers[0]).claim()).to.be.revertedWith("Already claimed");
+      });
+    });
+
+  });
 
 
-  
-
-  
 });

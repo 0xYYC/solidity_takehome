@@ -6,7 +6,7 @@ import "./ERC20.sol";
 contract Grant {
     
     mapping(address => bool) public funders;
-    mapping(address => uint256) public fundersDeposited;
+    mapping(address => uint256) public DepositedBalanceOf;
     uint256 public totalDeposited;
     bool public claimed;
 
@@ -35,34 +35,35 @@ contract Grant {
         require(_amount > 0 ,"Not enought amount to deposit");
         erc20.transferFrom(msg.sender,address(this),_amount);
         funders[msg.sender] = true;
-        fundersDeposited[msg.sender] += _amount;
+        DepositedBalanceOf[msg.sender] += _amount;
         totalDeposited += _amount; 
     }
 
     function remove() external onlyFunder{
-        require( block.timestamp < timeLock);
-        
-        erc20.transferFrom(address(this), msg.sender, fundersDeposited[msg.sender]);
-        
+        require( block.timestamp < timeLock,"late to remove");
+
+        uint256 amount = DepositedBalanceOf[msg.sender];
+
+
         funders[msg.sender] = false;
-        totalDeposited -= fundersDeposited[msg.sender];
-        fundersDeposited[msg.sender] = 0;      
-
-
+        totalDeposited -= amount;
+        DepositedBalanceOf[msg.sender] = 0;  
+        
+        erc20.transferFrom(address(this), msg.sender, amount);
+        
     }
 
     function claim() external onlyRecipient{
-        require( block.timestamp >= timeLock);
+        require( block.timestamp >= timeLock,"Not pass the timelock yet");
         require( !claimed,"Already claimed");
+        require( totalDeposited > 0,"Not enough balance to claim");
 
         erc20.transferFrom(address(this), msg.sender, totalDeposited);
 
         claimed = true;
 
     }
-    function depositedBalance(address _funder) public view returns (uint256 ){
-        return fundersDeposited[_funder];
-    }
+    
 
 
 
